@@ -1,0 +1,231 @@
+#version 450
+#extension GL_ARB_separate_shader_objects: enable
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform push_data {
+	mat4 view;
+	mat4 proj;
+	float delta_time;
+    float total_time;
+} push;
+
+struct blade_t {
+	vec4 v0;
+	vec4 v1;
+	vec4 v2;
+	vec4 up;
+};
+
+layout(set = 0, binding = 0) buffer input_blades {
+	blade_t all_blades[];
+};
+
+layout(set = 0, binding = 1) buffer culled_blades {
+	blade_t result[];
+};
+
+layout(set = 0, binding = 2) buffer indirect_draw_params {
+	uint vertex_count;   // keeps updating
+	uint instance_count; // 1
+	uint first_vertex;   // 0
+	uint first_instance; // 0
+} indirect_params;
+
+
+bool in_bounds(vec4 point, float bound) {
+  return ((point.x >= -bound) && (point.x <= bound))
+		 &&
+		 ((point.y >= -bound) && (point.y <= bound))
+		 &&
+		 ((point.z >= -bound) && (point.z <= bound));
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    
+	if (id == 0) indirect_params.vertex_count = 0;
+
+	if (id >= all_blades.length()) return;
+
+    blade_t cur_blade = all_blades[id];
+    
+	vec3 v0 = vec3(cur_blade.v0);
+	vec3 v1 = vec3(cur_blade.v1);
+	vec3 v2 = vec3(cur_blade.v2);
+	
+	vec3 up = vec3(cur_blade.up);
+
+	vec3 tangent = vec3(-cos(cur_blade.v0.w), 0.0, sin(cur_blade.v0.w));
+	vec3 bitangent = normalize(cross(tangent, up));
+
+	float h = cur_blade.v1.w;
+	float s = cur_blade.up.w;
+
+	// ...................................................
+	// Recovery
+	
+	vec3 Iv2 = v0 + h * up;
+	vec3 r = (Iv2 - v2) * s;
+
+	// Gravity
+
+	vec3 ge = vec3(0.0, -9.81, 0.0);
+	vec3 gf = 0.25 * length(ge) * bitangent;
+	
+	vec3 g = ge + gf;
+
+	// Wind
+
+	
+	/*
+	vec3 wind_dir = normalize(vec3(1.0, 0.0, 1.0));
+	float wind_speed = 2.0f; // 5
+	float wind_power = 50; // 10, 0.5
+	float wave_interval = 1.2;
+
+	float fd = 1 - abs(dot(normalize(wind_dir), normalize(v2 - v0)));
+	float fr = dot(v2 - v0, up) / h;
+
+	float wavecoeff = 1 * (cos((dot(v0, wind_dir) - wind_speed * push.total_time) / wave_interval));
+
+	vec3 w = wind_dir * fd * fr * wind_power * wavecoeff;
+	*/
+	
+	
+	
+	vec3 wind_dir = normalize(-vec3(1.0, 0.0, 1.0) + v0);
+
+	vec3 spcenter = 8 * vec3(sin(push.total_time), 0.0, cos(push.total_time));
+	float wind_speed = 5.0;
+	float wind_power = 10.0; 
+    float waveInterval = 1.2;
+	
+	vec3 tocent = v0 - vec3(1.0, 1.0, 1.0);
+	tangent = normalize(cross(tocent,up));
+	tangent = tangent-tocent*0.08;
+	//vec3 wind_dir = tangent;
+ 
+	//float waveInterval = 1.8;
+ 
+    float wavecoeff = 1 * (cos((dot(v0, wind_dir) - wind_speed * push.total_time) / waveInterval));
+	float normalmag = 0.0;
+	//directional alignment 
+	float fd = 1 - abs(dot(wind_dir, normalize(v2 - v0)));
+    //straightness
+    float fr = dot((v2 - v0), up) / h;
+     
+	//float wind_power = 5.0 * (1 - distance(v0, vec3(1.0, 1.0, 1.0)));
+    vec3 w = wind_dir * wind_power * (normalmag + wavecoeff) * fd * fr;
+	
+	
+	/* 
+
+	normal wind direction
+
+	vec3 w = vec3(5.f, -2.f, 3.f) * sin(push.total_time);
+    float wDir = 1.f - abs(dot(normalize(w), normalize(v2 - v0)));
+    float wHeight = dot(v2-v0, up)/h;
+    w *= wDir * wHeight;
+
+	*/
+
+	// total
+
+	vec3 dv2 = (g + r + w) * push.delta_time;
+	
+	v2 += dv2;
+
+	// ...................................................
+	
+	// State validation
+	
+	v2 = v2 - up * min(dot(up, v2 - v0), 0.f);
+	
+	float lproj = length(v2 - v0 - up * dot(v2 - v0, up));
+	
+	//h = 5.0f;
+
+	v1 = v0 + h * up * max(1 - lproj / h, 0.05 * max(lproj / h, 1.0));
+	
+	//v1 = v0 + h * up * 0.05;
+
+	float degree = 2.0f;
+	
+	float L0 = length(v2 - v0);
+	float L1 = length(v2 - v1) + length(v1 - v0);
+	float L = (2.0 * L0 + (degree - 1.0) * L1) / (degree + 1.0); 
+
+	float ratio = h / L;
+
+	vec3 v1_corr = v0 + ratio * (v1 - v0);
+	vec3 v2_corr = v1_corr + ratio * (v2 - v1);
+
+	v1 = v1_corr;
+	v2 = v2_corr;
+
+	all_blades[id].v2.xyz = v2;
+	all_blades[id].v1.xyz = v1;
+
+	// ...................................................
+	// Orientation test
+	// ...................................................
+
+
+	mat4 inverse_view = inverse(push.view);
+	vec3 eye = vec3(inverse_view * vec4(0.0, 0.0, 0.0, 1.0f));
+	vec3 viewing_direction = v0 - eye;
+	viewing_direction.y = 0.0f; // don't do culling if camera is looking straight down
+	vec3 blade_direction = tangent; //bitangent
+
+	bool is_parallel_to_view = abs(dot(normalize(viewing_direction), normalize(blade_direction))) < 0.3; // > 0.3
+
+	//if (is_parallel_to_view) return;
+
+	// ...................................................
+
+	// ...................................................
+	// View-Frustum test
+	// ...................................................
+
+	vec3 m = (0.25 * v0) + (0.5 * v1) + (0.25 * v2);
+
+	mat4 view_projection = push.proj * push.view; 
+	
+	vec4 v0_ = view_projection * vec4(v0, 1.0);
+	vec4 m_ = view_projection * vec4(m, 1.0);
+	vec4 v2_ = view_projection * vec4(v2, 1.0);
+
+	float tolerance = 0.001;
+
+	float h0 = v0_.w + tolerance;
+	float hm = m_.w + tolerance;
+	float h2 = v2_.w + tolerance;
+
+	bool not_in_bounds = in_bounds(v0_, h0) && in_bounds(m_, hm) && in_bounds(v2_, h2);
+
+	//if (not_in_bounds) return;
+
+	// ...................................................
+
+
+	// ...................................................
+	// Distance test
+	// ...................................................
+
+	float dproj = length(v0 - eye - up * dot(v0 - eye, up));
+	
+	float dmax = 25; // 15
+	float levels = 10; // 10
+
+	bool distance_culled = mod(id, levels) >= (levels * (1 - dproj / dmax));
+	
+	//if (distance_culled) return;
+
+	// ...................................................
+
+	uint index = atomicAdd(indirect_params.vertex_count, 1);
+    
+	if (index < result.length()) {
+        result[index] = cur_blade;
+    }
+}
