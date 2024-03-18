@@ -47,9 +47,31 @@ I hope all the ✨ paintings ✨ will help you understand the formulas. If you h
 Please note that only rendering part is shown, as the physics intuition doesn’t directly belong to the blade’s model and can be studied through better examples available on YouTube.
 I assume that you have complited reading the paper before going through this article because I only provide images and no textual eplanation, as they already exist.
 
-Why should you use trigonometric functions with different frequences to simulate wind coming from a specific source, like a helicopter or a fan? Take a look:
+### Basic parameters 
 
-Things are getting quite messy... I didn’t have enough colors, so tried using special symbols such as different types of hearts to help you distinguish one vector from another. 
+![](img/a.jpg)
+![](img/b.jpg)
+![](img/c.jpg)
+
+### The blade mid point
+
+![](img/m.jpg)
+
+### Orientation test
+
+![](img/orientation_test.jpg)
+
+### Why should you use trigonometric functions with different frequences to simulate wind coming from a specific source, like a helicopter or a fan? Take a look.
+
+![](img/helicopter_wind.jpg)
+
+### Things are getting quite messy... I didn’t have enough colors, so tried using special symbols such as different types of hearts to help you distinguish one vector from another.
+
+![](img/t0_t1_n.jpg)
+
+### Tessellation interpolation
+
+![](img/shape_interpolation.jpg)
 
 ## Implementation details
 
@@ -65,26 +87,11 @@ I don’t really think it would have been useful if I had described all the Vulk
 
 ### A heart for those who do appreciate!
 
-flat shading|lambert shading
-----|---
-![](img/interesting.gif)|![](img/lamb.gif)
-
-## Performance Analysis
-
-the test is conducted using the helicopter scene, the chart basically shows how rendering time change with respect to numbers of grass blades and different 
-culling technique
-
-![](img/grass.JPG)
-
-apparently, with the increasing of grass blade count, rendering time of each frame increases exponentially, 
-also from the result we can tell that view frustum culling have the best effect but it is based on the viewing position and orientation
-, thus I guess it's subject to change very easily once you pan the camera.
+![](img/heart-demo.gif)
 
 ## Resources
 
-### Links
-
-The following resources may be useful for this project.
+The following links may be useful for this project.
 
 * [Responsive Real-Time Grass Grass Rendering for General 3D Scenes](https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf)
 * [CIS565 Vulkan samples](https://github.com/CIS565-Fall-2018/Vulkan-Samples)
