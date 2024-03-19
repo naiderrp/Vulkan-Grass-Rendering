@@ -7,7 +7,7 @@ Vulkan Real-Time Grass Rendering
 
 ## Introduction
 
-Another individual inspired by [NVIDIA’s paper](https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf).
+Another individual inspired by [Nvidia’s paper](https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf).
 
 Probably the primary objective was to experiment with hardware-based optimization though. All the GPGPU stuff is exciting but I’m here to focus on leveraging the full potential of the GPU. For instance, the specification states that Vulkan only guarantees 128 bytes for push constants size, but all the per-frame updating matrices require 64 * 3 = 192 bytes. Therefore, we have to use uniform buffers and memory mapping to provide data to shaders. And I’m not fond of this approach since low-level APIs are actually called ‘low-level’ for a reason! I haven’t seen anyone using if-else statements for memory organization, probably because almost every GPGPU programmer has an NVIDIA GPU so can’t appreciate how FPS truly increases with push constants. It’s not entirely safe to use them, but since Vulkan does provide information about the available size, why not? Pipeline configuration can also be set during creation (using specialization constants), so there is no issue with if-else statement when choosing between push constants and memory mapping. Once it helped me inrease my FPS from 400 to almost 900. I simply preferred re-recording command buffers with per-frame updating push constants. Splitting compute shader and experimenting with different workgroup sizes are other aspects I could mention. It’s high time we started using low-level APIs as they were actually low-level. 
 
